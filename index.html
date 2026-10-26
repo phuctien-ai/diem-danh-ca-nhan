@@ -191,8 +191,8 @@ let state = load();
 // --- Cấu hình backend Supabase (điền sau khi tạo project) ---
 // Ví dụ: const SUPABASE_URL = 'https://abcdefghijklm.supabase.co';
 // Anon key là key công khai dùng cho frontend, KHÔNG dùng service_role key ở đây.
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://ugzunkzpdwomjmwghnfc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnenVua3pwZHdvbWptd2dobmZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5ODU5NTUsImV4cCI6MjEwODU2MTk1NX0.en0skYxwP-V5eEjsjvjyNUkg_7sDZV4MCl636706ZS0';
 let supabaseClient = null;
 let currentUser = null;
 if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
