@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Điểm danh làm việc — của Tien</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #ede9fe; color: #1e1b4b; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 40px; }
+  header { background: #5b21b6; color: #fff; border-radius: 0 0 24px 24px; padding: 24px 20px; margin: 0 -16px 20px; }
+  header h1 { margin: 0; font-size: 28px; }
+  header p { margin: 6px 0 0; opacity: .9; }
+  .card { background: #fff; border-radius: 20px; padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(91,33,182,.10); }
+  .card h2 { margin: 0 0 12px; font-size: 19px; }
+  .status { font-size: 24px; font-weight: 800; margin: 0 0 12px; }
+  .status .ok { color: #16a34a; } .status .late { color: #ea580c; } .status .none { color: #6b7280; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat { flex: 1; min-width: 130px; border-right: 1px solid #e5e7eb; padding-right: 12px; }
+  .stat:last-child { border-right: 0; }
+  .stat small { color: #6b7280; display: block; }
+  .stat b { font-size: 24px; }
+  button { cursor: pointer; border: 0; border-radius: 14px; padding: 12px 18px; font-size: 16px; font-weight: 700; }
+  .btn-primary { background: #5b21b6; color: #fff; flex: 1; }
+  .btn-outline { background: #fff; color: #5b21b6; border: 2px solid #5b21b6; flex: 1; }
+  .btn-small { padding: 8px 12px; font-size: 14px; background: #ede9fe; color: #5b21b6; }
+  .btn-danger { background: #fee2e2; color: #b91c1c; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .day { text-align: center; border-radius: 14px; padding: 10px 4px; background: #f5f3ff; }
+  .day.today { outline: 2px solid #5b21b6; }
+  .day .icon { font-size: 22px; }
+  .day small { color: #6b7280; }
+  .stats3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .mini { background: #f5f3ff; border-radius: 14px; padding: 12px; text-align: center; }
+  .mini b { font-size: 20px; display: block; }
+  .mini small { color: #6b7280; }
+  .cal-head, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+  .cal-head { color: #6b7280; font-size: 13px; margin-bottom: 6px; }
+  .cal-day { border: 0; background: transparent; padding: 8px 2px; border-radius: 12px; color: #1e1b4b; font-size: 15px; }
+  .cal-day:hover { background: #ede9fe; }
+  .cal-day.selected { background: #5b21b6; color: #fff; }
+  .cal-day .dot { display: block; width: 8px; height: 8px; border-radius: 50%; margin: 3px auto 0; }
+  .dot-green { background: #16a34a; } .dot-orange { background: #ea580c; } .dot-red { background: #dc2626; } .dot-gray { background: #d1d5db; }
+  label { display: block; font-size: 14px; color: #374151; margin: 10px 0 4px; }
+  input[type="time"], input[type="date"], input[type="number"], input[type="text"] { width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 15px; }
+  .checks { display: flex; gap: 12px; flex-wrap: wrap; }
+  .checks label { display: flex; gap: 6px; align-items: center; margin: 0; }
+  .muted { color: #6b7280; font-size: 14px; }
+  .detail { background: #f5f3ff; border-radius: 14px; padding: 12px; }
+  .legend { font-size: 14px; color: #374151; }
+  details summary { cursor: pointer; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>✓ Điểm danh làm việc</h1>
+    <p id="todayLabel"></p>
+    <p class="muted" style="color:#ddd6fe">App cá nhân của Tien — tự kỷ luật giờ làm việc.</p>
+  </header>
+
+  <section class="card">
+    <p class="status" id="todayStatus"></p>
+    <div class="row">
+      <div class="stat"><small>Vào làm</small><b id="inTime">—</b></div>
+      <div class="stat"><small>Mục tiêu</small><b id="targetTime">08:00</b></div>
+      <div class="stat"><small>Tan làm</small><b id="outTime">—</b></div>
+      <div class="stat"><small>Làm được</small><b id="workedTime">—</b></div>
+    </div>
+    <p class="muted" id="todayNoteLine"></p>
+    <div class="row" style="margin-top:14px">
+      <button class="btn-primary" id="btnIn">Vào làm</button>
+      <button class="btn-outline" id="btnOut">Tan làm</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn-small" id="btnUndo">Hủy điểm danh hôm nay</button>
+      <button class="btn-small" id="btnExport">Xuất CSV</button>
+    </div>
+    <label for="noteToday">Ghi chú hôm nay (ví dụ: lý do muộn)</label>
+    <input type="text" id="noteToday" placeholder="Không bắt buộc">
+  </section>
+
+  <section class="card">
+    <h2>Theo dõi tuần này</h2>
+    <div class="week" id="weekRow"></div>
+    <p class="muted">✓ = đúng giờ, ! = muộn, × = vắng (ngày làm việc đã qua mà không điểm danh), – = chưa tới / ngày nghỉ.</p>
+  </section>
+
+  <section class="card">
+    <h2 id="monthStatsTitle">Thống kê tháng</h2>
+    <div class="stats3">
+      <div class="mini"><small>Chuỗi đúng giờ</small><b id="streak">0 ngày</b></div>
+      <div class="mini"><small>Tỉ lệ đúng giờ</small><b id="rate">—</b></div>
+      <div class="mini"><small>Đã điểm danh</small><b id="attended">—</b></div>
+    </div>
+    <p class="muted" id="monthDetail"></p>
+  </section>
+
+  <section class="card">
+    <h2 id="calTitle">Lịch tháng</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn-small" id="prevMonth">‹ Tháng trước</button>
+      <button class="btn-small" id="nextMonth">Tháng sau ›</button>
+      <button class="btn-small" id="thisMonth">Về tháng này</button>
+    </div>
+    <div class="cal-head"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <p class="legend"><span style="color:#16a34a">●</span> Đúng giờ &nbsp;<span style="color:#ea580c">●</span> Muộn &nbsp;<span style="color:#dc2626">●</span> Vắng &nbsp; Bấm vào một ngày để xem chi tiết.</p>
+    <div class="detail" id="dayDetail"></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Cài đặt giờ làm việc của Tien</summary>
+      <label for="setStart">Giờ vào làm mục tiêu</label>
+      <input type="time" id="setStart" value="08:00">
+      <label for="setEnd">Giờ tan làm mục tiêu</label>
+      <input type="time" id="setEnd" value="17:00">
+      <label for="setGrace">Cho phép trễ (phút, 0 = đúng giờ tuyệt đối)</label>
+      <input type="number" id="setGrace" value="0" min="0" max="60">
+      <label>Ngày làm việc trong tuần</label>
+      <div class="checks" id="workDayChecks"></div>
+      <div class="row" style="margin-top:14px"><button class="btn-primary" id="btnSaveSettings">Lưu cài đặt</button></div>
+      <p class="muted">Thay đổi giờ mục tiêu sẽ tính lại trạng thái đúng giờ / muộn cho các ngày đã điểm danh.</p>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Thêm / sửa một ngày đã qua</summary>
+      <label for="editDate">Ngày</label>
+      <input type="date" id="editDate">
+      <label for="editIn">Giờ vào làm (để trống nếu vắng)</label>
+      <input type="time" id="editIn">
+      <label for="editOut">Giờ tan làm</label>
+      <input type="time" id="editOut">
+      <label for="editNote">Ghi chú</label>
+      <input type="text" id="editNote">
+      <div class="row" style="margin-top:14px">
+        <button class="btn-primary" id="btnSaveDay">Lưu ngày này</button>
+        <button class="btn-small btn-danger" id="btnDeleteDay">Xóa ngày này</button>
+      </div>
+      <p class="muted" id="deleteConfirm" style="display:none">Bấm lại nút Xóa để xác nhận xóa ngày này.</p>
+    </details>
+    <p class="muted">Dữ liệu chỉ lưu trên trình duyệt này (localStorage), chưa có tài khoản hay đồng bộ. Đừng xóa dữ liệu trình duyệt nếu không muốn mất lịch sử điểm danh.</p>
+  </section>
+</div>
+
+<script>
+const KEY = 'diem-danh-ca-nhan-v1';
+const DAY_NAMES = ['Chủ nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
+const WEEKDAY_LABELS = ['T2','T3','T4','T5','T6','T7','CN'];
+
+function defaultState() {
+  return { settings: { start: '08:00', end: '17:00', grace: 0, workDays: [1,2,3,4,5] }, records: {} };
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!parsed.settings || !parsed.records) return defaultState();
+    return parsed;
+  } catch (e) { return defaultState(); }
+}
+let state = load();
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parseDateKey(k) { const p = k.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function toMinutes(t) { if (!t) return null; const p = t.split(':').map(Number); return p[0] * 60 + p[1]; }
+function nowTime() { const n = new Date(); return pad(n.getHours()) + ':' + pad(n.getMinutes()); }
+function fmtDuration(mins) {
+  if (mins == null || mins < 0) return '—';
+  return Math.floor(mins / 60) + 'h' + pad(mins % 60) + 'p';
+}
+function isWorkDay(d) { return state.settings.workDays.includes(d.getDay()); }
+function recordStatus(rec, d) {
+  if (!rec || !rec.in) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const day = new Date(d); day.setHours(0,0,0,0);
+    if (isWorkDay(d) && day < today) return 'absent';
+    return 'none';
+  }
+  const late = toMinutes(rec.in) - (toMinutes(state.settings.start) + Number(state.settings.grace || 0));
+  return late > 0 ? 'late' : 'ontime';
+}
+function lateMinutes(rec) {
+  if (!rec || !rec.in) return 0;
+  return Math.max(0, toMinutes(rec.in) - (toMinutes(state.settings.start) + Number(state.settings.grace || 0)));
+}
+function statusText(status, rec) {
+  if (status === 'ontime') return '<span class="ok">Đúng giờ</span>';
+  if (status === 'late') return '<span class="late">Muộn ' + lateMinutes(rec) + ' phút</span>';
+  if (status === 'absent') return '<span class="late">Vắng</span>';
+  return '<span class="none">Chưa điểm danh</span>';
+}
+function iconFor(status) {
+  if (status === 'ontime') return '✓';
+  if (status === 'late') return '!';
+  if (status === 'absent') return '×';
+  return '–';
+}
+
+let calYear, calMonth, selectedKey;
+(function initCalendar() {
+  const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); selectedKey = dateKey(n);
+})();
+
+function renderToday() {
+  const today = new Date();
+  document.getElementById('todayLabel').textContent = DAY_NAMES[today.getDay()] + ', ' + pad(today.getDate()) + '/' + pad(today.getMonth() + 1) + '/' + today.getFullYear();
+  const rec = state.records[dateKey(today)] || {};
+  const status = recordStatus(rec, today);
+  document.getElementById('todayStatus').innerHTML = 'Hôm nay: ' + statusText(status, rec);
+  document.getElementById('inTime').textContent = rec.in || '—';
+  document.getElementById('targetTime').textContent = state.settings.start;
+  document.getElementById('outTime').textContent = rec.out || '—';
+  document.getElementById('workedTime').textContent = (rec.in && rec.out) ? fmtDuration(toMinutes(rec.out) - toMinutes(rec.in)) : '—';
+  const early = (rec.out && toMinutes(rec.out) < toMinutes(state.settings.end)) ? ('Về sớm ' + (toMinutes(state.settings.end) - toMinutes(rec.out)) + ' phút. ') : '';
+  document.getElementById('todayNoteLine').textContent = (early + (rec.note ? 'Ghi chú: ' + rec.note : '')).trim();
+  document.getElementById('noteToday').value = rec.note || '';
+  document.getElementById('btnIn').disabled = !!rec.in;
+  document.getElementById('btnOut').disabled = !rec.in || !!rec.out;
+}
+
+function mondayOf(d) {
+  const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); x.setHours(0,0,0,0); return x;
+}
+function renderWeek() {
+  const mon = mondayOf(new Date()); const el = document.getElementById('weekRow'); el.innerHTML = '';
+  const todayKey = dateKey(new Date());
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const k = dateKey(d); const status = recordStatus(state.records[k], d);
+    const div = document.createElement('div');
+    div.className = 'day' + (k === todayKey ? ' today' : '');
+    div.innerHTML = '<small>' + WEEKDAY_LABELS[i] + '</small><div class="icon">' + iconFor(status) + '</div><small>' + pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '</small>';
+    div.onclick = function() { selectedKey = k; calYear = d.getFullYear(); calMonth = d.getMonth(); renderAll(); };
+    el.appendChild(div);
+  }
+}
+
+function calcStreak() {
+  let streak = 0; let d = new Date(); d.setHours(0,0,0,0);
+  // Nếu hôm nay chưa đúng giờ, tính chuỗi tới ngày làm việc gần nhất trước đó.
+  if (recordStatus(state.records[dateKey(d)], d) !== 'ontime') { d.setDate(d.getDate() - 1); }
+  let guard = 0;
+  while (guard < 366) {
+    guard++;
+    if (isWorkDay(d) && recordStatus(state.records[dateKey(d)], d) === 'ontime') { streak++; }
+    else if (isWorkDay(d)) { break; }
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+function renderMonthStats() {
+  const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
+  document.getElementById('monthStatsTitle').textContent = 'Thống kê tháng ' + (m + 1) + '/' + y;
+  let ontime = 0, late = 0, absent = 0, attended = 0, workElapsed = 0;
+  for (const k in state.records) {
+    const d = parseDateKey(k);
+    if (d.getFullYear() === y && d.getMonth() === m && state.records[k].in) {
+      attended++;
+      const s = recordStatus(state.records[k], d);
+      if (s === 'ontime') ontime++; else if (s === 'late') late++;
+    }
+  }
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (let day = 1; day <= today.getDate(); day++) {
+    const d = new Date(y, m, day);
+    if (isWorkDay(d)) {
+      workElapsed++;
+      if (!state.records[dateKey(d)] || !state.records[dateKey(d)].in) absent++;
+    }
+  }
+  document.getElementById('streak').textContent = calcStreak() + ' ngày';
+  document.getElementById('rate').textContent = (ontime + late) > 0 ? Math.round(ontime / (ontime + late) * 100) + '%' : '—';
+  document.getElementById('attended').textContent = attended + '/' + workElapsed + ' ngày';
+  document.getElementById('monthDetail').textContent = 'Đúng giờ: ' + ontime + ' ngày • Muộn: ' + late + ' ngày • Vắng: ' + absent + ' ngày làm việc đã qua.';
+}
+
+function renderCalendar() {
+  document.getElementById('calTitle').textContent = 'Lịch tháng ' + (calMonth + 1) + '/' + calYear;
+  const grid = document.getElementById('calGrid'); grid.innerHTML = '';
+  const first = new Date(calYear, calMonth, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  for (let i = 0; i < startOffset; i++) { const s = document.createElement('span'); grid.appendChild(s); }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(calYear, calMonth, day); const k = dateKey(d);
+    const status = recordStatus(state.records[k], d);
+    const btn = document.createElement('button');
+    btn.className = 'cal-day' + (k === selectedKey ? ' selected' : '');
+    const dotClass = status === 'ontime' ? 'dot-green' : status === 'late' ? 'dot-orange' : status === 'absent' ? 'dot-red' : 'dot-gray';
+    btn.innerHTML = day + '<span class="dot ' + dotClass + '"></span>';
+    btn.onclick = function() { selectedKey = k; renderAll(); };
+    grid.appendChild(btn);
+  }
+  const d = parseDateKey(selectedKey); const rec = state.records[selectedKey] || {};
+  const status = recordStatus(rec, d);
+  const detail = document.getElementById('dayDetail');
+  detail.innerHTML = '<b>' + DAY_NAMES[d.getDay()] + ', ' + pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ':</b> ' + statusText(status, rec)
+    + (rec.in ? '<br>Vào: ' + rec.in + (rec.out ? ' • Tan: ' + rec.out + ' • Làm được: ' + fmtDuration(toMinutes(rec.out) - toMinutes(rec.in)) : ' • Chưa tan làm') : '')
+    + (rec.note ? '<br>Ghi chú: ' + rec.note : '');
+}
+
+function renderSettings() {
+  document.getElementById('setStart').value = state.settings.start;
+  document.getElementById('setEnd').value = state.settings.end;
+  document.getElementById('setGrace').value = state.settings.grace;
+  const box = document.getElementById('workDayChecks'); box.innerHTML = '';
+  const labels = ['CN','T2','T3','T4','T5','T6','T7'];
+  for (let i = 0; i < 7; i++) {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = state.settings.workDays.includes(i); cb.dataset.day = i;
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' ' + labels[i])); box.appendChild(lab);
+  }
+}
+function renderAll() { renderToday(); renderWeek(); renderMonthStats(); renderCalendar(); renderSettings(); }
+
+document.getElementById('btnIn').onclick = function() {
+  const k = dateKey(new Date()); const rec = state.records[k] || {};
+  rec.in = nowTime(); state.records[k] = rec; save(); renderAll();
+};
+document.getElementById('btnOut').onclick = function() {
+  const k = dateKey(new Date()); const rec = state.records[k] || {};
+  rec.out = nowTime(); state.records[k] = rec; save(); renderAll();
+};
+document.getElementById('btnUndo').onclick = function() {
+  const k = dateKey(new Date()); delete state.records[k]; save(); renderAll();
+};
+document.getElementById('noteToday').onchange = function(e) {
+  const k = dateKey(new Date()); const rec = state.records[k] || {};
+  rec.note = e.target.value; state.records[k] = rec; save(); renderAll();
+};
+document.getElementById('btnSaveSettings').onclick = function() {
+  const days = [];
+  document.querySelectorAll('#workDayChecks input').forEach(function(cb) { if (cb.checked) days.push(Number(cb.dataset.day)); });
+  state.settings = { start: document.getElementById('setStart').value || '08:00', end: document.getElementById('setEnd').value || '17:00', grace: Number(document.getElementById('setGrace').value || 0), workDays: days };
+  save(); renderAll(); alert('Đã lưu cài đặt.');
+};
+document.getElementById('btnSaveDay').onclick = function() {
+  const k = document.getElementById('editDate').value; if (!k) { alert('Chọn ngày trước nhé.'); return; }
+  const rec = state.records[k] || {};
+  rec.in = document.getElementById('editIn').value || '';
+  rec.out = document.getElementById('editOut').value || '';
+  rec.note = document.getElementById('editNote').value || '';
+  if (!rec.in && !rec.out && !rec.note) delete state.records[k]; else state.records[k] = rec;
+  save(); selectedKey = k; renderAll(); alert('Đã lưu ngày ' + k + '.');
+};
+let deleteArmed = false;
+document.getElementById('btnDeleteDay').onclick = function() {
+  const k = document.getElementById('editDate').value; if (!k) { alert('Chọn ngày trước nhé.'); return; }
+  if (!deleteArmed) { deleteArmed = true; document.getElementById('deleteConfirm').style.display = 'block'; setTimeout(function() { deleteArmed = false; document.getElementById('deleteConfirm').style.display = 'none'; }, 5000); return; }
+  delete state.records[k]; deleteArmed = false; document.getElementById('deleteConfirm').style.display = 'none'; save(); renderAll();
+};
+document.getElementById('prevMonth').onclick = function() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); };
+document.getElementById('nextMonth').onclick = function() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); };
+document.getElementById('thisMonth').onclick = function() { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); selectedKey = dateKey(n); renderAll(); };
+document.getElementById('btnExport').onclick = function() {
+  let csv = 'Ngay,Vao,Tan,Trang thai,Ghi chu\n';
+  Object.keys(state.records).sort().forEach(function(k) {
+    const rec = state.records[k]; const s = recordStatus(rec, parseDateKey(k));
+    csv += k + ',' + (rec.in || '') + ',' + (rec.out || '') + ',' + s + ',"' + (rec.note || '').replace(/"/g, '""') + '"\n';
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'diem-danh.csv'; a.click();
+};
+document.getElementById('editDate').value = dateKey(new Date());
+renderAll();
+</script>
+</body>
+</html>
