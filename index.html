@@ -43,7 +43,7 @@
   .cal-day .dot { display: block; width: 8px; height: 8px; border-radius: 50%; margin: 3px auto 0; }
   .dot-green { background: #16a34a; } .dot-orange { background: #ea580c; } .dot-red { background: #dc2626; } .dot-gray { background: #d1d5db; }
   label { display: block; font-size: 14px; color: #374151; margin: 10px 0 4px; }
-  input[type="time"], input[type="date"], input[type="number"], input[type="text"] { width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 15px; }
+  input[type="time"], input[type="date"], input[type="number"], input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 10px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 15px; }
   .checks { display: flex; gap: 12px; flex-wrap: wrap; }
   .checks label { display: flex; gap: 6px; align-items: center; margin: 0; }
   .muted { color: #6b7280; font-size: 14px; }
@@ -51,6 +51,7 @@
   .legend { font-size: 14px; color: #374151; }
   details summary { cursor: pointer; font-weight: 700; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="wrap">
@@ -59,6 +60,27 @@
     <p id="todayLabel"></p>
     <p class="muted" style="color:#ddd6fe">App cá nhân của Tien — tự kỷ luật giờ làm việc.</p>
   </header>
+
+  <section class="card" id="authCard">
+    <h2>Tài khoản đồng bộ</h2>
+    <p class="muted" id="authStatus">Đang kiểm tra kết nối backend…</p>
+    <div id="authForm">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" placeholder="email của Tien">
+      <label for="authPass">Mật khẩu</label>
+      <input type="password" id="authPass" placeholder="Mật khẩu Supabase">
+      <div class="row" style="margin-top:14px">
+        <button class="btn-primary" id="btnLogin">Đăng nhập</button>
+        <button class="btn-outline" id="btnSignup">Đăng ký</button>
+        <button class="btn-small" id="btnLogout">Đăng xuất</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-small" id="btnSync">Đồng bộ ngay</button>
+        <button class="btn-small" id="btnImport">Nhập dữ liệu local lên cloud</button>
+      </div>
+      <p class="muted">Khi chưa điền SUPABASE_URL và SUPABASE_ANON_KEY vào code, app chạy offline bằng localStorage như bản v1. Khi đã đăng nhập, mọi thay đổi sẽ tự đồng bộ lên Supabase và dùng được chung trên máy tính và điện thoại.</p>
+    </div>
+  </section>
 
   <section class="card">
     <p class="status" id="todayStatus"></p>
@@ -143,7 +165,7 @@
       </div>
       <p class="muted" id="deleteConfirm" style="display:none">Bấm lại nút Xóa để xác nhận xóa ngày này.</p>
     </details>
-    <p class="muted">Dữ liệu chỉ lưu trên trình duyệt này (localStorage), chưa có tài khoản hay đồng bộ. Đừng xóa dữ liệu trình duyệt nếu không muốn mất lịch sử điểm danh.</p>
+    <p class="muted">Khi chưa đăng nhập Supabase, dữ liệu chỉ lưu trên trình duyệt này (localStorage). Khi đã đăng nhập, dữ liệu đồng bộ lên Supabase và dùng chung trên máy tính và điện thoại; localStorage vẫn giữ một bản dự phòng.</p>
   </section>
 </div>
 
@@ -165,7 +187,82 @@ function load() {
   } catch (e) { return defaultState(); }
 }
 let state = load();
-function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+// --- Cấu hình backend Supabase (điền sau khi tạo project) ---
+// Ví dụ: const SUPABASE_URL = 'https://abcdefghijklm.supabase.co';
+// Anon key là key công khai dùng cho frontend, KHÔNG dùng service_role key ở đây.
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+let supabaseClient = null;
+let currentUser = null;
+if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
+  try { supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { supabaseClient = null; }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); queueSync(); }
+let syncTimer = null;
+function queueSync() {
+  if (!supabaseClient || !currentUser) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function() { syncUp().catch(function() {}); }, 500);
+}
+function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
+async function syncUp() {
+  if (!supabaseClient || !currentUser) return;
+  const s = state.settings;
+  await supabaseClient.from('settings').upsert({ user_id: currentUser.id, start_time: s.start, end_time: s.end, grace_minutes: s.grace, work_days: s.workDays }, { onConflict: 'user_id' });
+  const rows = Object.keys(state.records).map(function(k) {
+    const r = state.records[k];
+    return { user_id: currentUser.id, work_date: k, check_in: r.in || null, check_out: r.out || null, note: r.note || '' };
+  });
+  if (rows.length) await supabaseClient.from('attendance').upsert(rows, { onConflict: 'user_id,work_date' });
+}
+async function syncDown() {
+  if (!supabaseClient || !currentUser) return false;
+  const sRes = await supabaseClient.from('settings').select('*').eq('user_id', currentUser.id).maybeSingle();
+  const aRes = await supabaseClient.from('attendance').select('*').eq('user_id', currentUser.id).order('work_date', { ascending: true }).limit(5000);
+  if (aRes.error) throw aRes.error;
+  const hasCloud = (sRes.data && !sRes.error) || (aRes.data && aRes.data.length > 0);
+  if (!hasCloud) return false;
+  if (sRes.data) {
+    state.settings = { start: hhmm(sRes.data.start_time) || '08:00', end: hhmm(sRes.data.end_time) || '17:00', grace: Number(sRes.data.grace_minutes || 0), workDays: sRes.data.work_days || [1,2,3,4,5] };
+  }
+  if (aRes.data) {
+    const recs = {};
+    aRes.data.forEach(function(row) { recs[row.work_date] = { in: hhmm(row.check_in), out: hhmm(row.check_out), note: row.note || '' }; });
+    state.records = recs;
+  }
+  localStorage.setItem(KEY, JSON.stringify(state));
+  return true;
+}
+async function cloudDeleteDate(k) {
+  if (!supabaseClient || !currentUser) return;
+  await supabaseClient.from('attendance').delete().eq('user_id', currentUser.id).eq('work_date', k);
+}
+function renderAuth() {
+  const el = document.getElementById('authStatus');
+  if (!supabaseClient) { el.textContent = 'Chưa kết nối Supabase (chưa điền URL và anon key): app đang chạy offline bằng localStorage.'; return; }
+  if (currentUser) { el.textContent = 'Đã đăng nhập: ' + currentUser.email + ' — dữ liệu đang đồng bộ lên Supabase.'; }
+  else { el.textContent = 'Đã kết nối Supabase, chưa đăng nhập. Đăng nhập để đồng bộ dữ liệu giữa máy tính và điện thoại.'; }
+}
+async function initCloud() {
+  renderAuth();
+  if (!supabaseClient) return;
+  const sess = await supabaseClient.auth.getSession();
+  currentUser = sess.data && sess.data.session ? sess.data.session.user : null;
+  if (currentUser) {
+    try {
+      const hasCloud = await syncDown();
+      if (!hasCloud) await syncUp();
+      renderAll();
+    } catch (e) { /* giữ dữ liệu local nếu cloud lỗi, không xóa */ }
+  }
+  renderAuth();
+  supabaseClient.auth.onAuthStateChange(function(_event, session) {
+    currentUser = session ? session.user : null;
+    renderAuth();
+    if (currentUser) { syncDown().then(function(has) { if (!has) return syncUp(); }).then(function() { renderAll(); }).catch(function() {}); }
+  });
+}
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -330,7 +427,7 @@ document.getElementById('btnOut').onclick = function() {
   rec.out = nowTime(); state.records[k] = rec; save(); renderAll();
 };
 document.getElementById('btnUndo').onclick = function() {
-  const k = dateKey(new Date()); delete state.records[k]; save(); renderAll();
+  const k = dateKey(new Date()); delete state.records[k]; save(); cloudDeleteDate(k); renderAll();
 };
 document.getElementById('noteToday').onchange = function(e) {
   const k = dateKey(new Date()); const rec = state.records[k] || {};
@@ -355,7 +452,7 @@ let deleteArmed = false;
 document.getElementById('btnDeleteDay').onclick = function() {
   const k = document.getElementById('editDate').value; if (!k) { alert('Chọn ngày trước nhé.'); return; }
   if (!deleteArmed) { deleteArmed = true; document.getElementById('deleteConfirm').style.display = 'block'; setTimeout(function() { deleteArmed = false; document.getElementById('deleteConfirm').style.display = 'none'; }, 5000); return; }
-  delete state.records[k]; deleteArmed = false; document.getElementById('deleteConfirm').style.display = 'none'; save(); renderAll();
+  delete state.records[k]; deleteArmed = false; document.getElementById('deleteConfirm').style.display = 'none'; save(); cloudDeleteDate(k); renderAll();
 };
 document.getElementById('prevMonth').onclick = function() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); };
 document.getElementById('nextMonth').onclick = function() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); };
@@ -371,7 +468,40 @@ document.getElementById('btnExport').onclick = function() {
   a.download = 'diem-danh.csv'; a.click();
 };
 document.getElementById('editDate').value = dateKey(new Date());
+document.getElementById('btnLogin').onclick = async function() {
+  if (!supabaseClient) { alert('Chưa cấu hình Supabase trong code.'); return; }
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const res = await supabaseClient.auth.signInWithPassword({ email: email, password: pass });
+  if (res.error) { alert('Đăng nhập thất bại: ' + res.error.message); return; }
+  currentUser = res.data.user; renderAuth();
+  try { const has = await syncDown(); if (!has) await syncUp(); } catch (e) {}
+  renderAll();
+};
+document.getElementById('btnSignup').onclick = async function() {
+  if (!supabaseClient) { alert('Chưa cấu hình Supabase trong code.'); return; }
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const res = await supabaseClient.auth.signUp({ email: email, password: pass });
+  if (res.error) { alert('Đăng ký thất bại: ' + res.error.message); return; }
+  if (!res.data.session) { alert('Đăng ký xong. Nếu Supabase yêu cầu xác nhận email, kiểm tra hộp thư rồi đăng nhập lại.'); return; }
+  currentUser = res.data.user; renderAuth(); await syncUp(); renderAll();
+};
+document.getElementById('btnLogout').onclick = async function() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut(); currentUser = null; renderAuth(); renderAll();
+};
+document.getElementById('btnSync').onclick = async function() {
+  if (!supabaseClient || !currentUser) { alert('Chưa đăng nhập Supabase.'); return; }
+  try { await syncDown(); await syncUp(); renderAll(); alert('Đã đồng bộ xong.'); }
+  catch (e) { alert('Đồng bộ thất bại: ' + e.message); }
+};
+document.getElementById('btnImport').onclick = async function() {
+  if (!supabaseClient || !currentUser) { alert('Chưa đăng nhập Supabase.'); return; }
+  try { await syncUp(); alert('Đã nhập dữ liệu local lên cloud.'); } catch (e) { alert('Nhập thất bại: ' + e.message); }
+};
 renderAll();
+initCloud();
 </script>
 </body>
 </html>
